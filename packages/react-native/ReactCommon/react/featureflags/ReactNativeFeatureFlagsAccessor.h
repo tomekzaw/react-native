@@ -4,7 +4,7 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  *
- * @generated SignedSource<<074e6ad1d773f289f93ce1d16656ec6e>>
+ * @generated SignedSource<<3acbe133cd28b1cdabb4724555927ada>>
  */
 
 /**
@@ -38,6 +38,7 @@ class ReactNativeFeatureFlagsAccessor {
   bool cdpInteractionMetricsEnabled();
   bool cxxNativeAnimatedEnabled();
   bool defaultTextToOverflowHidden();
+  bool deferTextInputTruncationIOS();
   bool disableEarlyViewCommandExecution();
   bool disableIdleEventDispatchFrameCallbackRearmAndroid();
   bool disableIdleMountItemFrameCallbackRearmAndroid();
@@ -62,6 +63,7 @@ class ReactNativeFeatureFlagsAccessor {
   bool enableFabricCommitBranchingMergeOnMainThread();
   bool enableFabricLogs();
   bool enableFlexboxAutoMinSizeInStrictMode();
+  bool enableFollowUpMountItemDispatchAndroid();
   bool enableFontScaleChangesUpdatingLayout();
   bool enableIOSCompressedTextFrameAdjustment();
   bool enableIOSTextBaselineOffsetPerLine();
@@ -85,6 +87,7 @@ class ReactNativeFeatureFlagsAccessor {
   bool enablePropsUpdateReconciliationAndroid();
   bool enableResizeObserverByDefault();
   bool enableSwiftUIBasedFilters();
+  bool enableSynchronousTransformOverlay();
   bool enableViewCulling();
   bool enableViewRecycling();
   bool enableViewRecyclingForImage();
@@ -112,6 +115,7 @@ class ReactNativeFeatureFlagsAccessor {
   bool shouldPressibilityUseW3CPointerEventsForHover();
   bool shouldTriggerResponderTransferOnScrollAndroid();
   bool skipActivityIdentityAssertionOnHostPause();
+  bool skipUnchangedChildrenInDifferentiator();
   bool syncAndroidClipBoundsWithOverflow();
   bool traceTurboModulePromiseRejectionsOnAndroid();
   bool updateRuntimeShadowNodeReferencesOnCommit();
@@ -139,12 +143,13 @@ class ReactNativeFeatureFlagsAccessor {
   std::unique_ptr<ReactNativeFeatureFlagsProvider> currentProvider_;
   bool wasOverridden_;
 
-  std::array<std::atomic<const char*>, 94> accessedFeatureFlags_;
+  std::array<std::atomic<const char*>, 98> accessedFeatureFlags_;
 
   std::atomic<std::optional<bool>> commonTestFlag_;
   std::atomic<std::optional<bool>> cdpInteractionMetricsEnabled_;
   std::atomic<std::optional<bool>> cxxNativeAnimatedEnabled_;
   std::atomic<std::optional<bool>> defaultTextToOverflowHidden_;
+  std::atomic<std::optional<bool>> deferTextInputTruncationIOS_;
   std::atomic<std::optional<bool>> disableEarlyViewCommandExecution_;
   std::atomic<std::optional<bool>> disableIdleEventDispatchFrameCallbackRearmAndroid_;
   std::atomic<std::optional<bool>> disableIdleMountItemFrameCallbackRearmAndroid_;
@@ -169,6 +174,7 @@ class ReactNativeFeatureFlagsAccessor {
   std::atomic<std::optional<bool>> enableFabricCommitBranchingMergeOnMainThread_;
   std::atomic<std::optional<bool>> enableFabricLogs_;
   std::atomic<std::optional<bool>> enableFlexboxAutoMinSizeInStrictMode_;
+  std::atomic<std::optional<bool>> enableFollowUpMountItemDispatchAndroid_;
   std::atomic<std::optional<bool>> enableFontScaleChangesUpdatingLayout_;
   std::atomic<std::optional<bool>> enableIOSCompressedTextFrameAdjustment_;
   std::atomic<std::optional<bool>> enableIOSTextBaselineOffsetPerLine_;
@@ -192,6 +198,7 @@ class ReactNativeFeatureFlagsAccessor {
   std::atomic<std::optional<bool>> enablePropsUpdateReconciliationAndroid_;
   std::atomic<std::optional<bool>> enableResizeObserverByDefault_;
   std::atomic<std::optional<bool>> enableSwiftUIBasedFilters_;
+  std::atomic<std::optional<bool>> enableSynchronousTransformOverlay_;
   std::atomic<std::optional<bool>> enableViewCulling_;
   std::atomic<std::optional<bool>> enableViewRecycling_;
   std::atomic<std::optional<bool>> enableViewRecyclingForImage_;
@@ -219,6 +226,7 @@ class ReactNativeFeatureFlagsAccessor {
   std::atomic<std::optional<bool>> shouldPressibilityUseW3CPointerEventsForHover_;
   std::atomic<std::optional<bool>> shouldTriggerResponderTransferOnScrollAndroid_;
   std::atomic<std::optional<bool>> skipActivityIdentityAssertionOnHostPause_;
+  std::atomic<std::optional<bool>> skipUnchangedChildrenInDifferentiator_;
   std::atomic<std::optional<bool>> syncAndroidClipBoundsWithOverflow_;
   std::atomic<std::optional<bool>> traceTurboModulePromiseRejectionsOnAndroid_;
   std::atomic<std::optional<bool>> updateRuntimeShadowNodeReferencesOnCommit_;

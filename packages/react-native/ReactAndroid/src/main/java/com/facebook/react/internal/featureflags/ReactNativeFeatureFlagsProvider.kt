@@ -4,7 +4,7 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  *
- * @generated SignedSource<<18267103ef4f3eb22f23a15b808528c2>>
+ * @generated SignedSource<<fcdb5c800dd099a3876fb58e5f69f6e6>>
  */
 
 /**
@@ -30,6 +30,8 @@ public interface ReactNativeFeatureFlagsProvider {
   @DoNotStrip public fun cxxNativeAnimatedEnabled(): Boolean
 
   @DoNotStrip public fun defaultTextToOverflowHidden(): Boolean
+
+  @DoNotStrip public fun deferTextInputTruncationIOS(): Boolean
 
   @DoNotStrip public fun disableEarlyViewCommandExecution(): Boolean
 
@@ -79,6 +81,8 @@ public interface ReactNativeFeatureFlagsProvider {
 
   @DoNotStrip public fun enableFlexboxAutoMinSizeInStrictMode(): Boolean
 
+  @DoNotStrip public fun enableFollowUpMountItemDispatchAndroid(): Boolean
+
   @DoNotStrip public fun enableFontScaleChangesUpdatingLayout(): Boolean
 
   @DoNotStrip public fun enableIOSCompressedTextFrameAdjustment(): Boolean
@@ -124,6 +128,8 @@ public interface ReactNativeFeatureFlagsProvider {
   @DoNotStrip public fun enableResizeObserverByDefault(): Boolean
 
   @DoNotStrip public fun enableSwiftUIBasedFilters(): Boolean
+
+  @DoNotStrip public fun enableSynchronousTransformOverlay(): Boolean
 
   @DoNotStrip public fun enableViewCulling(): Boolean
 
@@ -178,6 +184,8 @@ public interface ReactNativeFeatureFlagsProvider {
   @DoNotStrip public fun shouldTriggerResponderTransferOnScrollAndroid(): Boolean
 
   @DoNotStrip public fun skipActivityIdentityAssertionOnHostPause(): Boolean
+
+  @DoNotStrip public fun skipUnchangedChildrenInDifferentiator(): Boolean
 
   @DoNotStrip public fun syncAndroidClipBoundsWithOverflow(): Boolean
 

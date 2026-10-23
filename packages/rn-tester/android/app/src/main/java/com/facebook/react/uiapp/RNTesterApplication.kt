@@ -24,6 +24,8 @@ import com.facebook.react.bridge.NativeModule
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.common.assets.ReactFontManager
 import com.facebook.react.defaults.DefaultReactHost
+import com.facebook.react.internal.featureflags.ReactNativeFeatureFlags
+import com.facebook.react.internal.featureflags.ReactNativeNewArchitectureFeatureFlagsDefaults
 import com.facebook.react.module.model.ReactModuleInfo
 import com.facebook.react.module.model.ReactModuleInfoProvider
 import com.facebook.react.uiapp.component.MyLegacyViewManager
@@ -128,5 +130,13 @@ internal class RNTesterApplication : Application(), ReactApplication {
     // feature flag overrides applied during React Native startup.
     FBRNTesterEndToEndHelper.initializeConfig(this)
     loadReactNative(this)
+    // Verification only: enables the synchronous transform overlay (see
+    // ReactCommon/react/renderer/uimanager/__docs__/SynchronousTransformOverlay.md) on top of
+    // the release-level flags applied by `loadReactNative`.
+    ReactNativeFeatureFlags.dangerouslyForceOverride(
+        object : ReactNativeNewArchitectureFeatureFlagsDefaults() {
+          override fun enableSynchronousTransformOverlay(): Boolean = true
+        }
+    )
   }
 }

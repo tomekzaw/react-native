@@ -34,6 +34,7 @@ import com.facebook.infer.annotation.Assertions;
 import com.facebook.infer.annotation.Nullsafe;
 import com.facebook.infer.annotation.ThreadConfined;
 import com.facebook.proguard.annotations.DoNotStripAny;
+import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.ColorPropConverter;
 import com.facebook.react.bridge.GuardedRunnable;
 import com.facebook.react.bridge.LifecycleEventListener;
@@ -46,6 +47,7 @@ import com.facebook.react.bridge.ReactMarkerConstants;
 import com.facebook.react.bridge.ReactSoftExceptionLogger;
 import com.facebook.react.bridge.ReadableArray;
 import com.facebook.react.bridge.ReadableMap;
+import com.facebook.react.bridge.ReadableType;
 import com.facebook.react.bridge.UIManager;
 import com.facebook.react.bridge.UIManagerListener;
 import com.facebook.react.bridge.UiThreadUtil;
@@ -67,7 +69,6 @@ import com.facebook.react.fabric.mounting.mountitems.DispatchCommandMountItem;
 import com.facebook.react.fabric.mounting.mountitems.MountItem;
 import com.facebook.react.fabric.mounting.mountitems.MountItemFactory;
 import com.facebook.react.fabric.mounting.mountitems.PrefetchResourcesMountItem;
-import com.facebook.react.fabric.mounting.mountitems.PullTransactionMountItem;
 import com.facebook.react.fabric.mounting.mountitems.SynchronousMountItem;
 import com.facebook.react.internal.featureflags.ReactNativeFeatureFlags;
 import com.facebook.react.internal.featureflags.ReactNativeNewArchitectureFeatureFlags;
@@ -237,6 +238,11 @@ public class FabricUIManager
           // This executor can be technically accessed before the dispatcher is created,
           // but if that happens, something is terribly wrong
           mMountItemDispatcher.dispatchMountItems(items);
+          // Only called when a surface's root view attaches, before the surface counts as attached,
+          // so the dispatch above skips its pull. Pull model: the next frame pulls it.
+          if (mMountItemDispatcher.hasSurfaceIdsToPull()) {
+            mDispatchUIFrameCallback.schedule();
+          }
         }
       };
 
@@ -713,7 +719,8 @@ public class FabricUIManager
         reactTags,
         preparedLayout.getTextBreakStrategy(),
         preparedLayout.getJustificationMode(),
-        preparedLayout.getBaseTextAttributes());
+        preparedLayout.getBaseTextAttributes(),
+        preparedLayout.getSourceText());
   }
 
   @AnyThread
@@ -827,6 +834,8 @@ public class FabricUIManager
 
     MountItem synchronousMountItem = new SynchronousMountItem(reactTag, props);
 
+    recordSynchronousTransform(reactTag, props);
+
     // If the reactTag exists, we assume that it might at the end of the next
     // batch of MountItems. Otherwise, we try to execute immediately.
     if (!mMountingManager.getViewExists(reactTag)) {
@@ -849,6 +858,42 @@ public class FabricUIManager
 
     ReactMarker.logFabricMarker(
         ReactMarkerConstants.FABRIC_UPDATE_UI_MAIN_THREAD_END, null, commitNumber);
+  }
+
+  /**
+   * Lets UIManager know about the `transform` / `transformOrigin` of a synchronous update, so that
+   * layout queries (measure, measureInWindow, etc.) describe the mounted view rather than the
+   * committed ShadowTree, which the synchronous path bypasses. See `SynchronousTransformOverlay`.
+   */
+  private void recordSynchronousTransform(final int reactTag, final ReadableMap props) {
+    if (mBinding == null || !ReactNativeFeatureFlags.enableSynchronousTransformOverlay()) {
+      return;
+    }
+    boolean hasTransform = props.hasKey("transform");
+    boolean hasTransformOrigin = props.hasKey("transformOrigin");
+    if (!hasTransform && !hasTransformOrigin) {
+      return;
+    }
+    // `props` is either a JavaOnlyMap (legacy Animated) or a ReadableNativeMap that the mount
+    // item still needs, so the relevant entries are copied into a fresh NativeMap for C++.
+    HashMap<String, Object> transformProps = new HashMap<>();
+    if (hasTransform) {
+      ReadableArray transform = props.getArray("transform");
+      transformProps.put("transform", transform != null ? transform.toArrayList() : null);
+    }
+    if (hasTransformOrigin) {
+      ReadableType type = props.getType("transformOrigin");
+      if (type == ReadableType.String) {
+        transformProps.put("transformOrigin", props.getString("transformOrigin"));
+      } else if (type == ReadableType.Array) {
+        ReadableArray transformOrigin = props.getArray("transformOrigin");
+        transformProps.put(
+            "transformOrigin", transformOrigin != null ? transformOrigin.toArrayList() : null);
+      } else {
+        transformProps.put("transformOrigin", null);
+      }
+    }
+    mBinding.recordSynchronousTransform(reactTag, Arguments.makeNativeMap(transformProps));
   }
 
   /** Called from C++ via JNI with a batch encoded by AnimatedPropBufferEncoder.cpp. */
@@ -1016,15 +1061,9 @@ public class FabricUIManager
     if (shouldSchedule) {
       Assertions.assertNotNull(mountItem, "MountItem is null");
       if (synchronous) {
-        if (mMountingManager.isWaitingForViewAttach(mountItem.getSurfaceId())) {
-          // Regular mount items are still being deferred into the surface's attach queue.
-          // Executing this batch inline would run it ahead of the preallocations queued there.
-          mMountItemDispatcher.addMountItem(mountItem);
-        } else {
-          // Pull model: we are already on the UI thread, inside the dispatcher's loop executing
-          // a PullTransactionMountItem. We don't schedule the item, we execute it directly.
-          mountItem.execute(mMountingManager);
-        }
+        // Pull model: we are already on the UI thread, inside the dispatcher's pull of a surface
+        // whose root view is attached. We don't schedule the item, we execute it directly.
+        mountItem.execute(mMountingManager);
       } else {
         mMountItemDispatcher.addMountItem(mountItem);
         if (UiThreadUtil.isOnUiThread()) {
@@ -1074,19 +1113,18 @@ public class FabricUIManager
 
   /**
    * Pull model: called from C++ via JNI (usually on the commit thread) to signal that a transaction
-   * is available for {@code surfaceId}. Enqueues a PullTransactionMountItem so the UI thread pulls
-   * and applies the transaction itself, preserving mount-item ordering.
+   * is available for {@code surfaceId}. The next dispatch on the UI thread pulls and applies it
+   * before the queued mount items.
    */
   @SuppressWarnings("unused")
   @AnyThread
   @ThreadConfined(ANY)
   @VisibleForTesting
   void onTransactionAvailable(int surfaceId) {
-    FabricUIManagerBinding binding = mBinding;
-    if (binding == null) {
+    if (mBinding == null) {
       return;
     }
-    mMountItemDispatcher.addMountItem(new PullTransactionMountItem(surfaceId, binding));
+    mMountItemDispatcher.addSurfaceIdToPull(surfaceId);
     if (UiThreadUtil.isOnUiThread()) {
       mMountItemDispatcher.tryDispatchMountItems();
     }
@@ -1551,16 +1589,14 @@ public class FabricUIManager
         listener.didMountItems(FabricUIManager.this);
       }
 
-      if (mountItems == null || mountItems.isEmpty()) {
-        return;
-      }
-
-      // Collect surface IDs for all the mount items
-      for (MountItem mountItem : mountItems) {
-        if (mountItem != null
-            && mountItem.getSurfaceId() != View.NO_ID
-            && !mSurfaceIdsWithPendingMountNotification.contains(mountItem.getSurfaceId())) {
-          mSurfaceIdsWithPendingMountNotification.add(mountItem.getSurfaceId());
+      if (mountItems != null) {
+        // Collect surface IDs for all the mount items
+        for (MountItem mountItem : mountItems) {
+          if (mountItem != null
+              && mountItem.getSurfaceId() != View.NO_ID
+              && !mSurfaceIdsWithPendingMountNotification.contains(mountItem.getSurfaceId())) {
+            mSurfaceIdsWithPendingMountNotification.add(mountItem.getSurfaceId());
+          }
         }
       }
 
@@ -1588,6 +1624,20 @@ public class FabricUIManager
                     binding.reportMount(surfaceId);
                   }
                 });
+      }
+    }
+
+    @UiThread
+    @ThreadConfined(UI)
+    @Override
+    public void pullTransaction(int surfaceId) {
+      FabricUIManagerBinding binding = mBinding;
+      if (binding == null) {
+        return;
+      }
+      binding.pullAndExecuteTransaction(surfaceId);
+      if (!mSurfaceIdsWithPendingMountNotification.contains(surfaceId)) {
+        mSurfaceIdsWithPendingMountNotification.add(surfaceId);
       }
     }
 

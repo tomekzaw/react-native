@@ -70,6 +70,8 @@ class FabricUIManagerBinding : public jni::HybridClass<FabricUIManagerBinding>,
 
   void startSurface(jint surfaceId, jni::alias_ref<jstring> moduleName, NativeMap *initialProps);
 
+  void recordSynchronousTransform(jint reactTag, NativeMap *transformProps);
+
   void startSurfaceWithConstraints(
       jint surfaceId,
       jni::alias_ref<jstring> moduleName,
@@ -166,6 +168,12 @@ class FabricUIManagerBinding : public jni::HybridClass<FabricUIManagerBinding>,
   // Track pending transactions, one per surfaceId
   std::mutex pendingTransactionsMutex_;
   std::vector<MountingTransaction> pendingTransactions_;
+
+  // Pull model: keeps the coordinator that reported a surface's commit alive
+  // until the UI thread handles the pull, as iOS does by capturing it in the
+  // block it dispatches to the main queue. Java only gets the surface id.
+  std::mutex pullableMountingCoordinatorsMutex_;
+  std::unordered_map<SurfaceId, std::shared_ptr<const MountingCoordinator>> pullableMountingCoordinators_;
 
   float pointScaleFactor_ = 1;
 

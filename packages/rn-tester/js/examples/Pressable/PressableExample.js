@@ -15,6 +15,7 @@ import * as React from 'react';
 import {
   Alert,
   Animated,
+  Easing,
   Image,
   Platform,
   PlatformColor,
@@ -191,8 +192,12 @@ function ForceTouchExample() {
           style={styles.wrapper}
           testID="pressable_3dtouch_button"
           onStartShouldSetResponder={() => true}
-          // $FlowFixMe[sketchy-null-number]
-          onResponderMove={event => setForce(event.nativeEvent?.force || 1)}
+          onResponderMove={event => {
+            const touchForce = event.nativeEvent?.force;
+            setForce(
+              touchForce != null && Boolean(touchForce) ? touchForce : 1,
+            );
+          }}
           onResponderRelease={event => setForce(0)}>
           <Text style={styles.button}>Press Me</Text>
         </View>
@@ -313,6 +318,35 @@ function PressableDisabled() {
 }
 
 const styles = StyleSheet.create({
+  animatedPressableContainer: {
+    alignItems: 'center',
+    // Room for the animated pressable to travel into.
+    paddingBottom: 170,
+  },
+  animatedPressableButtons: {
+    flexDirection: 'row',
+    marginVertical: 10,
+  },
+  animatedPressableButton: {
+    backgroundColor: '#2196f3',
+    borderRadius: 4,
+    marginHorizontal: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  animatedPressableButtonText: {
+    color: 'white',
+  },
+  animatedPressable: {
+    backgroundColor: 'navy',
+    borderRadius: 10,
+    paddingHorizontal: 40,
+    paddingVertical: 20,
+  },
+  animatedPressableText: {
+    color: 'white',
+    fontSize: 20,
+  },
   row: {
     justifyContent: 'center',
     flexDirection: 'row',
@@ -714,8 +748,77 @@ const examples = [
       );
     },
   },
+  {
+    title: 'Pressable inside a natively animated view',
+    description:
+      'Native-driven animations move views without committing to the ' +
+      'shadow tree. `onPress` must keep working while the view moves, ' +
+      'even when the finger drifts a little during the press.',
+    render: function PressableInsideNativelyAnimatedView(): React.Node {
+      return <PressableInAnimatedView />;
+    },
+  },
   ...PressableExampleFbInternal.examples,
 ];
+
+function PressableInAnimatedView(): React.Node {
+  const [pressInCount, setPressInCount] = useState(0);
+  const [pressCount, setPressCount] = useState(0);
+  const [measured, setMeasured] = useState('');
+  const translateY = useRef(new Animated.Value(0)).current;
+  const pressableRef = useRef<?React.ElementRef<typeof View>>(null);
+
+  const animateTo = (toValue: number, duration: number) => {
+    Animated.timing(translateY, {
+      toValue,
+      duration,
+      easing: Easing.linear,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const measure = () => {
+    pressableRef.current?.measure((x, y, width, height, pageX, pageY) => {
+      setMeasured(`measure(): pageY=${Math.round(pageY)}`);
+    });
+  };
+
+  return (
+    <View style={styles.animatedPressableContainer}>
+      <Text testID="pressable_animated_counters">
+        onPressIn: {pressInCount} | onPress: {pressCount}
+      </Text>
+      <Text testID="pressable_animated_measured">{measured}</Text>
+      <View style={styles.animatedPressableButtons}>
+        <Pressable
+          style={styles.animatedPressableButton}
+          onPress={() => animateTo(150, 120000)}>
+          <Text style={styles.animatedPressableButtonText}>
+            Animate (2 min)
+          </Text>
+        </Pressable>
+        <Pressable
+          style={styles.animatedPressableButton}
+          onPress={() => animateTo(0, 300)}>
+          <Text style={styles.animatedPressableButtonText}>Reset</Text>
+        </Pressable>
+        <Pressable style={styles.animatedPressableButton} onPress={measure}>
+          <Text style={styles.animatedPressableButtonText}>Measure</Text>
+        </Pressable>
+      </View>
+      <Animated.View style={{transform: [{translateY}]}}>
+        <Pressable
+          ref={pressableRef}
+          testID="pressable_animated"
+          style={styles.animatedPressable}
+          onPressIn={() => setPressInCount(count => count + 1)}
+          onPress={() => setPressCount(count => count + 1)}>
+          <Text style={styles.animatedPressableText}>Press me</Text>
+        </Pressable>
+      </Animated.View>
+    </View>
+  );
+}
 
 module.exports = {
   title: 'Pressable',
