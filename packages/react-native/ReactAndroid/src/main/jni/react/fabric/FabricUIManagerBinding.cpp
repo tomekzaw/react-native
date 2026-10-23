@@ -860,7 +860,28 @@ void FabricUIManagerBinding::schedulerShouldSynchronouslyUpdateViewOnUIThread(
 void FabricUIManagerBinding::schedulerShouldSynchronouslyUpdateAnimatedProps(
     const std::unordered_map<Tag, AnimatedProps>& updates) {
   if (ReactNativeFeatureFlags::cxxNativeAnimatedEnabled() && mountingManager_) {
+    // The batched path does not go through
+    // `FabricUIManager.synchronouslyUpdateViewOnUIThread` (which records the
+    // single-view updates), so record the transforms here.
+    if (ReactNativeFeatureFlags::enableSynchronousTransformOverlay()) {
+      if (auto uiManager = scheduler_->getUIManager()) {
+        for (const auto& [tag, animatedProps] : updates) {
+          uiManager->recordSynchronousTransform(tag, animatedProps);
+        }
+      }
+    }
     mountingManager_->synchronouslyUpdateAnimatedProps(updates);
+  }
+}
+
+void FabricUIManagerBinding::recordSynchronousTransform(
+    jint reactTag,
+    NativeMap* transformProps) {
+  if (scheduler_ == nullptr || transformProps == nullptr) {
+    return;
+  }
+  if (auto uiManager = scheduler_->getUIManager()) {
+    uiManager->recordSynchronousTransform(reactTag, transformProps->consume());
   }
 }
 
@@ -925,6 +946,9 @@ void FabricUIManagerBinding::registerNatives() {
           "setPixelDensity", FabricUIManagerBinding::setPixelDensity),
       makeNativeMethod(
           "driveCxxAnimations", FabricUIManagerBinding::driveCxxAnimations),
+      makeNativeMethod(
+          "recordSynchronousTransform",
+          FabricUIManagerBinding::recordSynchronousTransform),
       makeNativeMethod(
           "driveAnimationBackend",
           FabricUIManagerBinding::driveAnimationBackend),

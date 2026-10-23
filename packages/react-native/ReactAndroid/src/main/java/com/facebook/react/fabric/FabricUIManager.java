@@ -34,6 +34,7 @@ import com.facebook.infer.annotation.Assertions;
 import com.facebook.infer.annotation.Nullsafe;
 import com.facebook.infer.annotation.ThreadConfined;
 import com.facebook.proguard.annotations.DoNotStripAny;
+import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.ColorPropConverter;
 import com.facebook.react.bridge.GuardedRunnable;
 import com.facebook.react.bridge.LifecycleEventListener;
@@ -46,6 +47,7 @@ import com.facebook.react.bridge.ReactMarkerConstants;
 import com.facebook.react.bridge.ReactSoftExceptionLogger;
 import com.facebook.react.bridge.ReadableArray;
 import com.facebook.react.bridge.ReadableMap;
+import com.facebook.react.bridge.ReadableType;
 import com.facebook.react.bridge.UIManager;
 import com.facebook.react.bridge.UIManagerListener;
 import com.facebook.react.bridge.UiThreadUtil;
@@ -832,6 +834,8 @@ public class FabricUIManager
 
     MountItem synchronousMountItem = new SynchronousMountItem(reactTag, props);
 
+    recordSynchronousTransform(reactTag, props);
+
     // If the reactTag exists, we assume that it might at the end of the next
     // batch of MountItems. Otherwise, we try to execute immediately.
     if (!mMountingManager.getViewExists(reactTag)) {
@@ -854,6 +858,42 @@ public class FabricUIManager
 
     ReactMarker.logFabricMarker(
         ReactMarkerConstants.FABRIC_UPDATE_UI_MAIN_THREAD_END, null, commitNumber);
+  }
+
+  /**
+   * Lets UIManager know about the `transform` / `transformOrigin` of a synchronous update, so that
+   * layout queries (measure, measureInWindow, etc.) describe the mounted view rather than the
+   * committed ShadowTree, which the synchronous path bypasses. See `SynchronousTransformOverlay`.
+   */
+  private void recordSynchronousTransform(final int reactTag, final ReadableMap props) {
+    if (mBinding == null || !ReactNativeFeatureFlags.enableSynchronousTransformOverlay()) {
+      return;
+    }
+    boolean hasTransform = props.hasKey("transform");
+    boolean hasTransformOrigin = props.hasKey("transformOrigin");
+    if (!hasTransform && !hasTransformOrigin) {
+      return;
+    }
+    // `props` is either a JavaOnlyMap (legacy Animated) or a ReadableNativeMap that the mount
+    // item still needs, so the relevant entries are copied into a fresh NativeMap for C++.
+    HashMap<String, Object> transformProps = new HashMap<>();
+    if (hasTransform) {
+      ReadableArray transform = props.getArray("transform");
+      transformProps.put("transform", transform != null ? transform.toArrayList() : null);
+    }
+    if (hasTransformOrigin) {
+      ReadableType type = props.getType("transformOrigin");
+      if (type == ReadableType.String) {
+        transformProps.put("transformOrigin", props.getString("transformOrigin"));
+      } else if (type == ReadableType.Array) {
+        ReadableArray transformOrigin = props.getArray("transformOrigin");
+        transformProps.put(
+            "transformOrigin", transformOrigin != null ? transformOrigin.toArrayList() : null);
+      } else {
+        transformProps.put("transformOrigin", null);
+      }
+    }
+    mBinding.recordSynchronousTransform(reactTag, Arguments.makeNativeMap(transformProps));
   }
 
   /** Called from C++ via JNI with a batch encoded by AnimatedPropBufferEncoder.cpp. */

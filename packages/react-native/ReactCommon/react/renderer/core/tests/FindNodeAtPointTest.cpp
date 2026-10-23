@@ -452,3 +452,89 @@ TEST(FindNodeAtPointTest, considersOverflowAreaOfTheParent) {
           ->getTag(),
       3);
 }
+
+namespace {
+
+class SingleNodeTransformOverrideProvider
+    : public LayoutableShadowNode::TransformOverrideProvider {
+ public:
+  SingleNodeTransformOverrideProvider(Tag tag, Transform transform)
+      : tag_(tag), transform_(std::move(transform)) {}
+
+  std::optional<Transform> getTransformOverride(
+      const LayoutableShadowNode& shadowNode) const override {
+    if (shadowNode.getTag() == tag_) {
+      return transform_;
+    }
+    return std::nullopt;
+  }
+
+ private:
+  Tag tag_;
+  Transform transform_;
+};
+
+} // namespace
+
+TEST(FindNodeAtPointTest, viewIsTranslatedWithTransformOverride) {
+  auto builder = simpleComponentBuilder();
+
+  // clang-format off
+  auto element =
+    Element<ViewShadowNode>()
+      .tag(1)
+      .finalize([](ViewShadowNode &shadowNode){
+        auto layoutMetrics = EmptyLayoutMetrics;
+        layoutMetrics.frame.size = {.width=1000, .height=1000};
+        shadowNode.setLayoutMetrics(layoutMetrics);
+      })
+      .children({
+        Element<ViewShadowNode>()
+        .tag(2)
+        .finalize([](ViewShadowNode &shadowNode){
+          auto layoutMetrics = EmptyLayoutMetrics;
+          layoutMetrics.frame.origin = {.x=100, .y=100};
+          layoutMetrics.frame.size = {.width=100, .height=100};
+          shadowNode.setLayoutMetrics(layoutMetrics);
+        })
+        .children({
+          Element<ViewShadowNode>()
+          .tag(3)
+          .finalize([](ViewShadowNode &shadowNode){
+            auto layoutMetrics = EmptyLayoutMetrics;
+            layoutMetrics.frame.origin = {.x=10, .y=10};
+            layoutMetrics.frame.size = {.width=10, .height=10};
+            shadowNode.setLayoutMetrics(layoutMetrics);
+          })
+        })
+    });
+  // clang-format on
+
+  auto parentShadowNode = builder.build(element);
+
+  // The mounted view with tag 2 was moved 200 points down without a commit.
+  auto provider =
+      SingleNodeTransformOverrideProvider{2, Transform::Translate(0, 200, 0)};
+
+  EXPECT_EQ(
+      LayoutableShadowNode::findNodeAtPoint(
+          parentShadowNode, {115, 315}, &provider)
+          ->getTag(),
+      3);
+  EXPECT_EQ(
+      LayoutableShadowNode::findNodeAtPoint(
+          parentShadowNode, {105, 305}, &provider)
+          ->getTag(),
+      2);
+  // The committed position no longer hits the moved view.
+  EXPECT_EQ(
+      LayoutableShadowNode::findNodeAtPoint(
+          parentShadowNode, {115, 115}, &provider)
+          ->getTag(),
+      1);
+  // Without the provider, the committed position is still used.
+  EXPECT_EQ(
+      LayoutableShadowNode::findNodeAtPoint(parentShadowNode, {115, 115})
+          ->getTag(),
+      3);
+}
