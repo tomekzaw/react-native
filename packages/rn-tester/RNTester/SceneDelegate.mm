@@ -29,7 +29,24 @@
 #import <React/RCTDevMenu.h>
 #endif
 
+// Verification only: the feature flags headers are private to React Native's
+// own build, see `RNTesterFeatureFlagsOverrides` below.
+#undef RN_STRICT_API
+#import <react/featureflags/ReactNativeFeatureFlags.h>
+#import <react/featureflags/ReactNativeFeatureFlagsOverridesOSSStable.h>
+
+#import <memory>
+
 static NSString *const kBundlePath = @"js/RNTesterApp.ios";
+
+// Verification only, see `scene:willConnectToSession:options:`.
+class RNTesterFeatureFlagsOverrides : public facebook::react::ReactNativeFeatureFlagsOverridesOSSStable {
+ public:
+  bool enableSynchronousTransformOverlay() override
+  {
+    return true;
+  }
+};
 
 @implementation SceneDelegate
 
@@ -57,6 +74,11 @@ static NSString *const kBundlePath = @"js/RNTesterApp.ios";
 #endif
 
   self.reactNativeFactory = [[RCTReactNativeFactory alloc] initWithDelegate:self releaseLevel:[self releaseLevel]];
+
+  // Verification only: enables the synchronous transform overlay (see
+  // ReactCommon/react/renderer/uimanager/__docs__/SynchronousTransformOverlay.md)
+  // on top of the release-level flags applied by the factory.
+  facebook::react::ReactNativeFeatureFlags::dangerouslyForceOverride(std::make_unique<RNTesterFeatureFlagsOverrides>());
 
   auto *windowScene = (UIWindowScene *)scene;
   self.window = [[UIWindow alloc] initWithWindowScene:windowScene];
